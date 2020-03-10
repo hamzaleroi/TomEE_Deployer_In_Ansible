@@ -1,0 +1,81 @@
+---
+- name: adding openjdk repo to ubuntu
+  gather_facts: no
+  hosts: all
+  become: yes
+  tasks:
+    - apt_repository:
+        repo: ppa:openjdk-r/ppa
+        update_cache: yes
+- name: install java
+  hosts: all
+  become: yes 
+  roles:
+    - role: install_package
+      vars:
+        package_list:
+          - default-jre
+          - openjdk-11-jdk
+    - role: set_env
+      vars:
+        var_name: JAVA_HOME
+        line: /usr/lib/jvm/java-11-openjdk-amd64
+
+- name: install tomee
+  hosts: all
+  
+  tasks: 
+    - name: stat tomee
+      stat: 
+        path: /usr/local/tomee
+      register: tomee_stat
+    - name: unarchive packages in the guest host
+      unarchive:
+        dest: /usr/local
+        src: ./archives/apache-tomee-8.0.1-plume.tar.gz
+      when: tomee_stat.stat.exists == false
+    - name: stat tomee
+      stat: 
+        path: /usr/local/apache-tomee-plume-8.0.1
+      register: tomee_stat
+    - name: rename tomee folder
+      command: mv /usr/local/apache-tomee-plume-8.0.1 /usr/local/tomee 
+      when: tomee_stat.stat.exists     
+
+- name: deploy war apps
+  hosts: all
+  tags: 
+    - deploy
+  tasks:
+    - name: create group tomeeg
+      become: yes
+      user:
+        name: tomeeg
+        state: present
+    - name: create user tomeeu
+      become: yes
+      user:
+        name: tomeeu
+        groups: admin, tomeeg
+        state: present
+    - name: stat tomee
+      stat: 
+        path: /usr/local/tomee
+      register: tomee_stat
+    - name: deploy the app
+      become: yes
+      copy:
+        src: ./apps/MailItemWS.war
+        dest: /usr/local/tomee/webapps
+        owner: tomeeu
+        group: tomeeg
+      when: tomee_stat.stat.exists
+      notify:
+        - restart tomee
+  handlers:
+    - name: restart tomee
+      shell: cd /usr/local/tomee/bin  && ./shutdown.sh && ./startup.sh
+
+
+
+

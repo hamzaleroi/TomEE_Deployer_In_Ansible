@@ -1,0 +1,8 @@
+- name: set an environment variable
+  lineinfile:
+    path: /etc/environment
+    state: present
+    line: "{{var_name}}={{line}}"
+
+- name: source the environment
+  shell: . /etc/environment
